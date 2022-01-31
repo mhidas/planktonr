@@ -119,12 +119,14 @@ pr_get_indices_nrs <- function(){
   ZooData <- pr_get_NRSTrips("Z") %>%
     left_join(pr_get_NRSZooData(), by = "TripCode")
 
+### DONE
   TZoo <- ZooData %>%
     group_by(.data$TripCode) %>%
     tidyr::drop_na(.data$ZoopAbund_m3) %>% # stops code putting 0 for trip codes with no counts when na.rm = TRUE
     summarise(ZoopAbundance_m3 = sum(.data$ZoopAbund_m3),
               .groups = "drop")
 
+### DONE
   TCope <- ZooData %>%
     filter(.data$Copepod == "COPEPOD") %>%
     group_by(.data$TripCode, ) %>%
@@ -134,16 +136,19 @@ pr_get_indices_nrs <- function(){
   # Bring in copepod information table with sizes etc.
   ZInfo <- pr_get_ZooInfo()
 
+### DONE
   ACopeSize <- ZooData %>%
     filter(.data$Copepod == "COPEPOD") %>%
     inner_join(ZInfo %>%
                  select(.data$Length_mm, .data$TaxonName, .data$Diet), by = "TaxonName") %>%
     mutate(abunSize = .data$Length_mm * .data$ZoopAbund_m3,
            Diet = if_else(.data$Diet == "CC", "CC", "CO")) %>%
+           ## Is DIET actually relevant here?? It doesn't seem to be used below...
     group_by(.data$TripCode) %>%
     summarise(AvgTotalLengthCopepod_mm = sum(.data$abunSize, na.rm = TRUE)/sum(.data$ZoopAbund_m3, na.rm = TRUE),
               .groups = "drop")
 
+### DONE ??
   HCrat <- ZooData %>% #TODO This whole section needs to be reconsidered. Not sure it gives the correct ratios
     filter(.data$Copepod == "COPEPOD") %>%
     inner_join(ZInfo %>%
@@ -152,12 +157,16 @@ pr_get_indices_nrs <- function(){
       .data$Diet == "Carnivore" ~ "CC",
       .data$Diet == "Omnivore" ~ "CO",
       .data$Diet == "Herbivore" ~ "CO")) %>% #TODO Check that Herbivore is correct
+      ## So this says Herbivores count as Omnivores ??
+      ## WHat about when Diet is "unknown" - should these be excluded??
     tidyr::drop_na() %>%
     select(.data$TripCode, .data$Diet, .data$ZoopAbund_m3) %>%
     group_by(.data$TripCode, .data$Diet) %>%
     summarise(sumdiet = sum(.data$ZoopAbund_m3 , na.rm = TRUE), .groups = "drop") %>%
     tidyr::pivot_wider(values_from = .data$sumdiet, names_from = .data$Diet) %>%
     mutate(HerbivoreCarnivoreCopepodRatio = .data$CO / (.data$CO + .data$CC))
+    ## This looks to me more like "OmnivoreFraction" ??
+    ## i.e. the fraction of Copepods that are Omnivores (incl. herbivores), rather than a ratio of herbivores to carnivores
 
   # Diversity, evenness etc.
 
@@ -165,10 +174,12 @@ pr_get_indices_nrs <- function(){
   ZooCount <- pr_get_NRSTrips("Z") %>%
     left_join(pr_get_NRSZooData(), by = "TripCode")
 
+## HERE
   zoo_n <- ZooCount %>%
     filter(.data$Copepod == "COPEPOD") %>%
     pr_filter_species() %>%
     mutate(TaxonName = paste0(.data$Genus," ", stringr::word(.data$Species,1))) %>% # bin complexes
+    ## This TaxonName defines the species we're counting here
     dplyr::select(.data$TripCode, .data$TaxonName) %>%
     unique() %>%
     group_by(.data$TripCode) %>%
