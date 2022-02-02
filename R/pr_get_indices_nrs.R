@@ -174,7 +174,7 @@ pr_get_indices_nrs <- function(){
   ZooCount <- pr_get_NRSTrips("Z") %>%
     left_join(pr_get_NRSZooData(), by = "TripCode")
 
-## HERE
+### DONE
   zoo_n <- ZooCount %>%
     filter(.data$Copepod == "COPEPOD") %>%
     pr_filter_species() %>%
@@ -185,6 +185,7 @@ pr_get_indices_nrs <- function(){
     group_by(.data$TripCode) %>%
     summarise(NoCopepodSpecies_Sample = n(), .groups = "drop")
 
+### DONE
   ShannonCopepodDiversity <- ZooCount %>%
     filter(.data$Copepod == "COPEPOD") %>%
     pr_filter_species() %>%
@@ -197,6 +198,7 @@ pr_get_indices_nrs <- function(){
     select(-.data$TripCode) %>%
     vegan::diversity("shannon")
 
+### DONE
   CopepodEvenness <- zoo_n %>%
     bind_cols(ShannonCopepodDiversity = ShannonCopepodDiversity) %>%
     mutate(CopepodEvenness = .data$ShannonCopepodDiversity / log(.data$NoCopepodSpecies_Sample))
@@ -209,21 +211,27 @@ pr_get_indices_nrs <- function(){
   # PhytoData <- PhytoData %>%
   #  filter(str_detect(.data$TaxonName, "Flagellate <10", negate = TRUE)) # Remove flagellates #TODO
 
+### DONE
   PhytoC <- PhytoData %>%
     select(.data$TripCode, .data$TaxonGroup, .data$Cells_L, .data$Biovolume_um3L) %>%
     pr_add_Carbon("NRS") %>% # Add carbon concentration
+    ## had to exclude cases where Cells_L = 0
     group_by(.data$TripCode) %>%
     summarise(PhytoBiomassCarbon_pgL = sum(.data$Carbon_L),
               .groups = "drop")
 
+### DONE
   TPhyto <- PhytoData %>%
     group_by(.data$TripCode) %>%
     summarise(PhytoAbund_CellsL = sum(.data$Cells_L, na.rm = TRUE),
               .groups = "drop")
 
+### DONE
   DDrat <- PhytoData %>%
     filter(.data$TaxonGroup %in% c("Centric diatom", "Pennate diatom", "Dinoflagellate")) %>%
     mutate(TaxonGroup = recode(.data$TaxonGroup, "Centric diatom" = "Diatom", "Pennate diatom" = "Diatom")) %>%
+    ## Are these the only possible Diatom goups ??
+    ## Is it ok to use a pattern like "%diatom" instead of two fixed strings?
     select(.data$TripCode, .data$TaxonGroup, .data$Cells_L) %>%
     group_by(.data$TripCode, .data$TaxonGroup) %>%
     summarise(sumTG = sum(.data$Cells_L, na.rm = TRUE),
@@ -231,15 +239,19 @@ pr_get_indices_nrs <- function(){
     tidyr::pivot_wider(values_from = .data$sumTG, names_from = .data$TaxonGroup) %>%
     mutate(DiatomDinoflagellateRatio = .data$Diatom / (.data$Diatom + .data$Dinoflagellate))
 
+### DONE
   AvgCellVol <- PhytoData %>%
     filter(!is.na(.data$Biovolume_um3L)) %>%
     group_by(.data$TripCode) %>%
     summarise(AvgCellVol_um3 = mean(sum(.data$Biovolume_um3L)/sum(.data$Cells_L)),
               .groups = "drop")
+              ## Does mean() do anything here ??
+              ## Doesn't sum(Biovolume_um3L) / sum(Cells_L) already yield the mean for each TripCode?
 
   # vegan::diversity (phyto, diatoms, dinos)
   # stick to abundance data here or we lose all the data that Pru counted which we don"t have counts for.
 
+## HERE
   NP <- PhytoData %>%
     filter(.data$TaxonGroup != "Other") %>%
     pr_filter_species() %>%
