@@ -251,7 +251,7 @@ pr_get_indices_nrs <- function(){
   # vegan::diversity (phyto, diatoms, dinos)
   # stick to abundance data here or we lose all the data that Pru counted which we don"t have counts for.
 
-## HERE
+### DONE
   NP <- PhytoData %>%
     filter(.data$TaxonGroup != "Other") %>%
     pr_filter_species() %>%
@@ -262,6 +262,7 @@ pr_get_indices_nrs <- function(){
     summarise(NoPhytoSpecies_Sample = n(),
               .groups = "drop")
 
+### DONE
   ShannonPhytoDiversity <- PhytoData %>%
     filter(.data$TaxonGroup != "Other") %>%
     pr_filter_species() %>%
@@ -274,6 +275,7 @@ pr_get_indices_nrs <- function(){
     select(-.data$TripCode) %>%
     vegan::diversity("shannon")
 
+## HERE
   PhytoEven <- NP %>%
     bind_cols(ShannonPhytoDiversity = ShannonPhytoDiversity) %>%
     mutate(PhytoEvenness = .data$ShannonPhytoDiversity / log(.data$NoPhytoSpecies_Sample))
