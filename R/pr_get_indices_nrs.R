@@ -275,11 +275,12 @@ pr_get_indices_nrs <- function(){
     select(-.data$TripCode) %>%
     vegan::diversity("shannon")
 
-## HERE
+### DONE
   PhytoEven <- NP %>%
     bind_cols(ShannonPhytoDiversity = ShannonPhytoDiversity) %>%
     mutate(PhytoEvenness = .data$ShannonPhytoDiversity / log(.data$NoPhytoSpecies_Sample))
 
+### DONE
   NDia <- PhytoData %>%
     filter(.data$TaxonGroup %in% c("Centric diatom", "Pennate diatom")) %>%
     pr_filter_species() %>%
@@ -288,6 +289,7 @@ pr_get_indices_nrs <- function(){
     summarise(NoDiatomSpecies_Sample = n(),
               .groups = "drop")
 
+### DONE
   ShannonDiatomDiversity <- PhytoData %>%
     filter(.data$TaxonGroup %in% c("Centric diatom", "Pennate diatom")) %>%
     pr_filter_species() %>%
@@ -300,10 +302,12 @@ pr_get_indices_nrs <- function(){
     select(-.data$TripCode) %>%
     vegan::diversity("shannon")
 
+### DONE
   DiaEven <- NDia %>%
     bind_cols(ShannonDiatomDiversity = ShannonDiatomDiversity) %>%
     mutate(DiatomEvenness = .data$ShannonDiatomDiversity / log(.data$NoDiatomSpecies_Sample))
 
+## HERE
   NDino <- PhytoData %>%
     filter(.data$TaxonGroup == "Dinoflagellate") %>%
     pr_filter_species() %>%
