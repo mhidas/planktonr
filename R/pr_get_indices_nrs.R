@@ -115,6 +115,9 @@ pr_get_indices_nrs <- function(){
     summarise(PigmentChla_mgm3 = mean(.data$DV_CPHL_A_AND_CPHL_A, na.rm = TRUE),
               .groups = "drop")
 
+
+### Zooplankton indices
+
   # Total Zooplankton Abundance
   ZooData <- pr_get_NRSTrips("Z") %>%
     left_join(pr_get_NRSZooData(), by = "TripCode")
@@ -202,6 +205,9 @@ pr_get_indices_nrs <- function(){
   CopepodEvenness <- zoo_n %>%
     bind_cols(ShannonCopepodDiversity = ShannonCopepodDiversity) %>%
     mutate(CopepodEvenness = .data$ShannonCopepodDiversity / log(.data$NoCopepodSpecies_Sample))
+
+
+### Phytoplankton indices
 
   # Total Phyto abundance
   PhytoData <- pr_get_NRSTrips("P") %>%
@@ -307,7 +313,7 @@ pr_get_indices_nrs <- function(){
     bind_cols(ShannonDiatomDiversity = ShannonDiatomDiversity) %>%
     mutate(DiatomEvenness = .data$ShannonDiatomDiversity / log(.data$NoDiatomSpecies_Sample))
 
-## HERE
+### DONE
   NDino <- PhytoData %>%
     filter(.data$TaxonGroup == "Dinoflagellate") %>%
     pr_filter_species() %>%
@@ -316,6 +322,7 @@ pr_get_indices_nrs <- function(){
     summarise(NoDinoSpecies_Sample = n(),
               .groups = "drop")
 
+### DONE
   ShannonDinoDiversity <- PhytoData %>%
     filter(.data$TaxonGroup == "Dinoflagellate") %>%
     pr_filter_species() %>%
@@ -328,6 +335,7 @@ pr_get_indices_nrs <- function(){
     select(-.data$TripCode) %>%
     vegan::diversity("shannon")
 
+### DONE
   DinoEven <- NDino %>%
     bind_cols(ShannonDinoDiversity = ShannonDinoDiversity) %>%
     mutate(DinoflagellateEvenness = .data$ShannonDinoDiversity / log(.data$NoDinoSpecies_Sample))
