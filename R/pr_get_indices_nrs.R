@@ -21,15 +21,20 @@ pr_get_indices_nrs <- function(){
     pr_rename() %>%
     select(.data$TripCode, .data$Date, .data$Latitude, .data$Longitude)
 
+### DONE
   var_names <- c("Temperature_degC", "Salinity_psu", "ChlF_mgm3")
   # SST and Chlorophyll from CTD
   CTD <- pr_get_CTD() %>%
     pr_rename() %>%
+    ## Should this be different from the "surface" values we included in the plankton products ??
+    ## There we were just extracting the nearest value to 10m, and removing values flagged as bad.
+    ## And is it avg of top 10m or 15m ??
     filter(.data$SampleDepth_m < 15) %>% # take average of top 10m as a surface value for SST and CHL, this is removing 17 casts as of nov 2020
     group_by(.data$TripCode) %>%
     summarise(across(matches(var_names), ~ mean(.x, na.rm = TRUE)), .groups = "drop") %>%
     dplyr::rename(CTDTemperature_degC = Temperature_degC, CTDChlF_mgm3 = ChlF_mgm3, CTDSalinity_psu = Salinity_psu)
 
+### DONE
   # Dataset for calculating MLD
   CTD_MLD <- pr_get_CTD() %>%
     select(.data$TripCode, .data$Temperature_degC, .data$ChlF_mgm3, .data$Salinity_psu, .data$SampleDepth_m) %>%
@@ -41,6 +46,8 @@ pr_get_indices_nrs <- function(){
 
   # MLD by T and S (Ref: Condie & Dunn 2006)
   # DCM from max f from CTD
+
+  ## Loop over each TripCode ...
   for (i in 1:length(unique(CTD_MLD$TripCode))) {
     dat <- CTD_MLD %>%
       select(.data$TripCode) %>%
@@ -50,12 +57,15 @@ pr_get_indices_nrs <- function(){
     Trip <- dat$TripCode[[i]] %>%
       droplevels()
 
+    ## Select CTD data for current Trip
     mldData <- CTD_MLD %>%
       filter(.data$TripCode == Trip) %>%
+      ## order by depth ??
       arrange(.data$SampleDepth_m)
 
     if (as.character(substr(Trip, 0,3)) %in% c("DAR", "YON")){
       refDepth <- 5
+      ## Should this different reference depth also be used to extract the "surface" values for other products ??
     }
 
     if (!as.character(substr(Trip, 0,3)) %in% c("DAR", "YON")){
@@ -71,25 +81,32 @@ pr_get_indices_nrs <- function(){
     # Reference Temperature
     refT <- refz$Temperature_degC - 0.4 # temp at 10 m minus 0.4 deg C
 
+    ## exclude data shallower than the reference depth from  mldData
     mldData <- mldData %>%
       filter(.data$SampleDepth_m > refz$SampleDepth_m)
 
+    ## Find depth > ref_depth with temperature closest to ref temp
     mld_t <- mldData %>%
       mutate(temp = abs(.data$Temperature_degC - refT),
              ranktemp = stats::ave(.data$temp, FUN = . %>% order %>% order)) %>%
       filter(.data$ranktemp == 1)
 
+    ### DONE
     MLDtemp_m <- mld_t$SampleDepth_m
 
+    ## Reference salinity
     refS <- refz$Salinity_psu - 0.03 # temp at 10 m minus 0.4
 
+    ## Find depth > ref_depth with salinity closest to ref salinity
     mld_s <- mldData %>%
       mutate(temp = abs(.data$Salinity_psu - refS),
              ranksal = stats::ave(.data$temp, FUN = . %>% order %>% order)) %>%
       filter(.data$ranksal == 1)
 
+    ### DONE
     MLDsal_m <- mld_s$SampleDepth_m
 
+    ### DONE
     dcm_m <- mean((mldData %>%
               filter(.data$ChlF_mgm3 > 0 & .data$ChlF_mgm3 == max(.data$ChlF_mgm3))
     )$SampleDepth_m)
@@ -100,6 +117,7 @@ pr_get_indices_nrs <- function(){
       tidyr::drop_na(.data$TripCode)
   }
 
+###DONE
   var_names <- c("Silicate_umolL", "Phosphate_umolL", "Ammonium_umolL", "Nitrate_umolL", "Nitrite_umolL",
                  "Oxygen_umolL", "DIC_umolkg", "TAlkalinity_umolkg", "Salinity_psu")
   # Nutrient data
@@ -108,7 +126,9 @@ pr_get_indices_nrs <- function(){
     summarise(across(matches(var_names), ~ mean(.x, na.rm = TRUE)), .groups = "drop") %>%
     mutate_all(~ replace(., is.na(.), NA))
 
+### DONE
   Pigments <- pr_get_NRSPigments() %>%
+    ## There are over 100 trips with no data at <25m, for KAI, NSI, PHB
     filter(.data$SampleDepth_m <= 25) %>% # take average of top 10m as a surface value for SST and CHL
     # filter(.data$SampleDepth_m == "WC") %>%
     group_by(.data$TripCode) %>%
