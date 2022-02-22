@@ -21,15 +21,20 @@ pr_get_indices_nrs <- function(){
     pr_rename() %>%
     select(.data$TripCode, .data$Date, .data$Latitude, .data$Longitude)
 
+### DONE
   var_names <- c("Temperature_degC", "Salinity_psu", "ChlF_mgm3")
   # SST and Chlorophyll from CTD
   CTD <- pr_get_CTD() %>%
     pr_rename() %>%
+    ## Should this be different from the "surface" values we included in the plankton products ??
+    ## There we were just extracting the nearest value to 10m, and removing values flagged as bad.
+    ## And is it avg of top 10m or 15m ??
     filter(.data$SampleDepth_m < 15) %>% # take average of top 10m as a surface value for SST and CHL, this is removing 17 casts as of nov 2020
     group_by(.data$TripCode) %>%
     summarise(across(matches(var_names), ~ mean(.x, na.rm = TRUE)), .groups = "drop") %>%
     dplyr::rename(CTDTemperature_degC = Temperature_degC, CTDChlF_mgm3 = ChlF_mgm3, CTDSalinity_psu = Salinity_psu)
 
+### DONE
   # Dataset for calculating MLD
   CTD_MLD <- pr_get_CTD() %>%
     select(.data$TripCode, .data$Temperature_degC, .data$ChlF_mgm3, .data$Salinity_psu, .data$SampleDepth_m) %>%
@@ -41,6 +46,8 @@ pr_get_indices_nrs <- function(){
 
   # MLD by T and S (Ref: Condie & Dunn 2006)
   # DCM from max f from CTD
+
+  ## Loop over each TripCode ...
   for (i in 1:length(unique(CTD_MLD$TripCode))) {
     dat <- CTD_MLD %>%
       select(.data$TripCode) %>%
@@ -50,12 +57,15 @@ pr_get_indices_nrs <- function(){
     Trip <- dat$TripCode[[i]] %>%
       droplevels()
 
+    ## Select CTD data for current Trip
     mldData <- CTD_MLD %>%
       filter(.data$TripCode == Trip) %>%
+      ## order by depth ??
       arrange(.data$SampleDepth_m)
 
     if (as.character(substr(Trip, 0,3)) %in% c("DAR", "YON")){
       refDepth <- 5
+      ## Should this different reference depth also be used to extract the "surface" values for other products ??
     }
 
     if (!as.character(substr(Trip, 0,3)) %in% c("DAR", "YON")){
@@ -71,25 +81,32 @@ pr_get_indices_nrs <- function(){
     # Reference Temperature
     refT <- refz$Temperature_degC - 0.4 # temp at 10 m minus 0.4 deg C
 
+    ## exclude data shallower than the reference depth from  mldData
     mldData <- mldData %>%
       filter(.data$SampleDepth_m > refz$SampleDepth_m)
 
+    ## Find depth > ref_depth with temperature closest to ref temp
     mld_t <- mldData %>%
       mutate(temp = abs(.data$Temperature_degC - refT),
              ranktemp = stats::ave(.data$temp, FUN = . %>% order %>% order)) %>%
       filter(.data$ranktemp == 1)
 
+    ### DONE
     MLDtemp_m <- mld_t$SampleDepth_m
 
+    ## Reference salinity
     refS <- refz$Salinity_psu - 0.03 # temp at 10 m minus 0.4
 
+    ## Find depth > ref_depth with salinity closest to ref salinity
     mld_s <- mldData %>%
       mutate(temp = abs(.data$Salinity_psu - refS),
              ranksal = stats::ave(.data$temp, FUN = . %>% order %>% order)) %>%
       filter(.data$ranksal == 1)
 
+    ### DONE
     MLDsal_m <- mld_s$SampleDepth_m
 
+    ### DONE
     dcm_m <- mean((mldData %>%
               filter(.data$ChlF_mgm3 > 0 & .data$ChlF_mgm3 == max(.data$ChlF_mgm3))
     )$SampleDepth_m)
@@ -100,6 +117,7 @@ pr_get_indices_nrs <- function(){
       tidyr::drop_na(.data$TripCode)
   }
 
+###DONE
   var_names <- c("Silicate_umolL", "Phosphate_umolL", "Ammonium_umolL", "Nitrate_umolL", "Nitrite_umolL",
                  "Oxygen_umolL", "DIC_umolkg", "TAlkalinity_umolkg", "Salinity_psu")
   # Nutrient data
@@ -108,23 +126,30 @@ pr_get_indices_nrs <- function(){
     summarise(across(matches(var_names), ~ mean(.x, na.rm = TRUE)), .groups = "drop") %>%
     mutate_all(~ replace(., is.na(.), NA))
 
+### DONE
   Pigments <- pr_get_NRSPigments() %>%
+    ## There are over 100 trips with no data at <25m, for KAI, NSI, PHB
     filter(.data$SampleDepth_m <= 25) %>% # take average of top 10m as a surface value for SST and CHL
     # filter(.data$SampleDepth_m == "WC") %>%
     group_by(.data$TripCode) %>%
     summarise(PigmentChla_mgm3 = mean(.data$DV_CPHL_A_AND_CPHL_A, na.rm = TRUE),
               .groups = "drop")
 
+
+### Zooplankton indices
+
   # Total Zooplankton Abundance
   ZooData <- pr_get_NRSTrips("Z") %>%
     left_join(pr_get_NRSZooData(), by = "TripCode")
 
+### DONE
   TZoo <- ZooData %>%
     group_by(.data$TripCode) %>%
     tidyr::drop_na(.data$ZoopAbund_m3) %>% # stops code putting 0 for trip codes with no counts when na.rm = TRUE
     summarise(ZoopAbundance_m3 = sum(.data$ZoopAbund_m3),
               .groups = "drop")
 
+### DONE
   TCope <- ZooData %>%
     filter(.data$Copepod == "COPEPOD") %>%
     group_by(.data$TripCode, ) %>%
@@ -134,16 +159,19 @@ pr_get_indices_nrs <- function(){
   # Bring in copepod information table with sizes etc.
   ZInfo <- pr_get_ZooInfo()
 
+### DONE
   ACopeSize <- ZooData %>%
     filter(.data$Copepod == "COPEPOD") %>%
     inner_join(ZInfo %>%
                  select(.data$Length_mm, .data$TaxonName, .data$Diet), by = "TaxonName") %>%
     mutate(abunSize = .data$Length_mm * .data$ZoopAbund_m3,
            Diet = if_else(.data$Diet == "CC", "CC", "CO")) %>%
+           ## Is DIET actually relevant here?? It doesn't seem to be used below...
     group_by(.data$TripCode) %>%
     summarise(AvgTotalLengthCopepod_mm = sum(.data$abunSize, na.rm = TRUE)/sum(.data$ZoopAbund_m3, na.rm = TRUE),
               .groups = "drop")
 
+### DONE ??
   HCrat <- ZooData %>% #TODO This whole section needs to be reconsidered. Not sure it gives the correct ratios
     filter(.data$Copepod == "COPEPOD") %>%
     inner_join(ZInfo %>%
@@ -152,12 +180,16 @@ pr_get_indices_nrs <- function(){
       .data$Diet == "Carnivore" ~ "CC",
       .data$Diet == "Omnivore" ~ "CO",
       .data$Diet == "Herbivore" ~ "CO")) %>% #TODO Check that Herbivore is correct
+      ## So this says Herbivores count as Omnivores ??
+      ## WHat about when Diet is "unknown" - should these be excluded??
     tidyr::drop_na() %>%
     select(.data$TripCode, .data$Diet, .data$ZoopAbund_m3) %>%
     group_by(.data$TripCode, .data$Diet) %>%
     summarise(sumdiet = sum(.data$ZoopAbund_m3 , na.rm = TRUE), .groups = "drop") %>%
     tidyr::pivot_wider(values_from = .data$sumdiet, names_from = .data$Diet) %>%
     mutate(HerbivoreCarnivoreCopepodRatio = .data$CO / (.data$CO + .data$CC))
+    ## This looks to me more like "OmnivoreFraction" ??
+    ## i.e. the fraction of Copepods that are Omnivores (incl. herbivores), rather than a ratio of herbivores to carnivores
 
   # Diversity, evenness etc.
 
@@ -165,15 +197,18 @@ pr_get_indices_nrs <- function(){
   ZooCount <- pr_get_NRSTrips("Z") %>%
     left_join(pr_get_NRSZooData(), by = "TripCode")
 
+### DONE
   zoo_n <- ZooCount %>%
     filter(.data$Copepod == "COPEPOD") %>%
     pr_filter_species() %>%
     mutate(TaxonName = paste0(.data$Genus," ", stringr::word(.data$Species,1))) %>% # bin complexes
+    ## This TaxonName defines the species we're counting here
     dplyr::select(.data$TripCode, .data$TaxonName) %>%
     unique() %>%
     group_by(.data$TripCode) %>%
     summarise(NoCopepodSpecies_Sample = n(), .groups = "drop")
 
+### DONE
   ShannonCopepodDiversity <- ZooCount %>%
     filter(.data$Copepod == "COPEPOD") %>%
     pr_filter_species() %>%
@@ -186,9 +221,13 @@ pr_get_indices_nrs <- function(){
     select(-.data$TripCode) %>%
     vegan::diversity("shannon")
 
+### DONE
   CopepodEvenness <- zoo_n %>%
     bind_cols(ShannonCopepodDiversity = ShannonCopepodDiversity) %>%
     mutate(CopepodEvenness = .data$ShannonCopepodDiversity / log(.data$NoCopepodSpecies_Sample))
+
+
+### Phytoplankton indices
 
   # Total Phyto abundance
   PhytoData <- pr_get_NRSTrips("P") %>%
@@ -198,21 +237,27 @@ pr_get_indices_nrs <- function(){
   # PhytoData <- PhytoData %>%
   #  filter(str_detect(.data$TaxonName, "Flagellate <10", negate = TRUE)) # Remove flagellates #TODO
 
+### DONE
   PhytoC <- PhytoData %>%
     select(.data$TripCode, .data$TaxonGroup, .data$Cells_L, .data$Biovolume_um3L) %>%
     pr_add_Carbon("NRS") %>% # Add carbon concentration
+    ## had to exclude cases where Cells_L = 0
     group_by(.data$TripCode) %>%
     summarise(PhytoBiomassCarbon_pgL = sum(.data$Carbon_L),
               .groups = "drop")
 
+### DONE
   TPhyto <- PhytoData %>%
     group_by(.data$TripCode) %>%
     summarise(PhytoAbund_CellsL = sum(.data$Cells_L, na.rm = TRUE),
               .groups = "drop")
 
+### DONE
   DDrat <- PhytoData %>%
     filter(.data$TaxonGroup %in% c("Centric diatom", "Pennate diatom", "Dinoflagellate")) %>%
     mutate(TaxonGroup = recode(.data$TaxonGroup, "Centric diatom" = "Diatom", "Pennate diatom" = "Diatom")) %>%
+    ## Are these the only possible Diatom goups ??
+    ## Is it ok to use a pattern like "%diatom" instead of two fixed strings?
     select(.data$TripCode, .data$TaxonGroup, .data$Cells_L) %>%
     group_by(.data$TripCode, .data$TaxonGroup) %>%
     summarise(sumTG = sum(.data$Cells_L, na.rm = TRUE),
@@ -220,15 +265,19 @@ pr_get_indices_nrs <- function(){
     tidyr::pivot_wider(values_from = .data$sumTG, names_from = .data$TaxonGroup) %>%
     mutate(DiatomDinoflagellateRatio = .data$Diatom / (.data$Diatom + .data$Dinoflagellate))
 
+### DONE
   AvgCellVol <- PhytoData %>%
     filter(!is.na(.data$Biovolume_um3L)) %>%
     group_by(.data$TripCode) %>%
     summarise(AvgCellVol_um3 = mean(sum(.data$Biovolume_um3L)/sum(.data$Cells_L)),
               .groups = "drop")
+              ## Does mean() do anything here ??
+              ## Doesn't sum(Biovolume_um3L) / sum(Cells_L) already yield the mean for each TripCode?
 
   # vegan::diversity (phyto, diatoms, dinos)
   # stick to abundance data here or we lose all the data that Pru counted which we don"t have counts for.
 
+### DONE
   NP <- PhytoData %>%
     filter(.data$TaxonGroup != "Other") %>%
     pr_filter_species() %>%
@@ -239,6 +288,7 @@ pr_get_indices_nrs <- function(){
     summarise(NoPhytoSpecies_Sample = n(),
               .groups = "drop")
 
+### DONE
   ShannonPhytoDiversity <- PhytoData %>%
     filter(.data$TaxonGroup != "Other") %>%
     pr_filter_species() %>%
@@ -251,10 +301,12 @@ pr_get_indices_nrs <- function(){
     select(-.data$TripCode) %>%
     vegan::diversity("shannon")
 
+### DONE
   PhytoEven <- NP %>%
     bind_cols(ShannonPhytoDiversity = ShannonPhytoDiversity) %>%
     mutate(PhytoEvenness = .data$ShannonPhytoDiversity / log(.data$NoPhytoSpecies_Sample))
 
+### DONE
   NDia <- PhytoData %>%
     filter(.data$TaxonGroup %in% c("Centric diatom", "Pennate diatom")) %>%
     pr_filter_species() %>%
@@ -263,6 +315,7 @@ pr_get_indices_nrs <- function(){
     summarise(NoDiatomSpecies_Sample = n(),
               .groups = "drop")
 
+### DONE
   ShannonDiatomDiversity <- PhytoData %>%
     filter(.data$TaxonGroup %in% c("Centric diatom", "Pennate diatom")) %>%
     pr_filter_species() %>%
@@ -275,10 +328,12 @@ pr_get_indices_nrs <- function(){
     select(-.data$TripCode) %>%
     vegan::diversity("shannon")
 
+### DONE
   DiaEven <- NDia %>%
     bind_cols(ShannonDiatomDiversity = ShannonDiatomDiversity) %>%
     mutate(DiatomEvenness = .data$ShannonDiatomDiversity / log(.data$NoDiatomSpecies_Sample))
 
+### DONE
   NDino <- PhytoData %>%
     filter(.data$TaxonGroup == "Dinoflagellate") %>%
     pr_filter_species() %>%
@@ -287,6 +342,7 @@ pr_get_indices_nrs <- function(){
     summarise(NoDinoSpecies_Sample = n(),
               .groups = "drop")
 
+### DONE
   ShannonDinoDiversity <- PhytoData %>%
     filter(.data$TaxonGroup == "Dinoflagellate") %>%
     pr_filter_species() %>%
@@ -299,6 +355,7 @@ pr_get_indices_nrs <- function(){
     select(-.data$TripCode) %>%
     vegan::diversity("shannon")
 
+### DONE
   DinoEven <- NDino %>%
     bind_cols(ShannonDinoDiversity = ShannonDinoDiversity) %>%
     mutate(DinoflagellateEvenness = .data$ShannonDinoDiversity / log(.data$NoDinoSpecies_Sample))

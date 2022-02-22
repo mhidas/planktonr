@@ -227,6 +227,7 @@ pr_add_Carbon <- function(df, meth){
   if (meth %in% "NRS"){
     df <- df %>%
       mutate(BV_Cell = .data$Biovolume_um3L / .data$Cells_L, # biovolume of one cell
+      ## what about when Cells_L = 0 ?? There are rows in the raw data that
              Carbon = case_when(.data$TaxonGroup == "Dinoflagellate" ~ 0.76*(.data$BV_Cell)^0.819, # conversion to Carbon based on taxongroup and biovolume of cell
                                 .data$TaxonGroup == "Ciliate" ~ 0.22*(.data$BV_Cell)^0.939,
                                 .data$TaxonGroup == "Cyanobacteria" ~ 0.2,
